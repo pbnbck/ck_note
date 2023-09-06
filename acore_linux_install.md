@@ -4,7 +4,7 @@
 df -h
 ```
 
-查看磁盘挂载情况
+## 查看磁盘挂载情况
 
 ```
 mkfs.ext4 /dev/sda4
@@ -45,17 +45,17 @@ timeout=10
 
 menuentry 'AcoreLinux Embedded version V1.0.0.F.2' {
 
-​    insmod part_gpt
+    insmod part_gpt
 
-​    insmod ext2
+    insmod ext2
 
-​    set root='hd0,gpt4'
+    set root='hd0,gpt4'
 
-​    Echo  ‘Loading Linux 4.19 ACoreLinux-01 ...’
+    Echo  ‘Loading Linux 4.19 ACoreLinux-01 ...’
 
-​    linux  /boot/Image root=/dev/sda4
+    linux  /boot/Image root=/dev/sda4
 
-​    console=ttyAMA1,115200 splash loglevel=7 rootdelay=5 KEYBOARDTYPE=pc KEYTABLE=us security=
+    console=ttyAMA1,115200 splash loglevel=7 rootdelay=5 KEYBOARDTYPE=pc KEYTABLE=us security=
 
 }
 ```
@@ -66,5 +66,16 @@ menuentry 'AcoreLinux Embedded version V1.0.0.F.2' {
 
 ```
 sudo reboot
+```
+
+
+
+## mqnic 在天脉上安装
+
+
+
+```
+cd /usr/scr/src/kernel
+make scripts
 ```
 
