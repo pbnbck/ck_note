@@ -74,3 +74,37 @@ make install
 ```
 
 当重启一个终端可能会发生问题一的错误，解决方法1.1/1.2
+
+
+
+export脚本
+
+```
+#!/bin/bash
+nicname=$1
+echo "$nicname"
+interrupt_line=$(grep "$nicname" /proc/interrupts)
+interrupt_number=$(echo "$interrupt_line" | awk '{print $1}' | sed 's/://')
+echo 2 > /proc/irq/$interrupt_number/smp_affinity_list
+echo "$nicname $interrupt_number"
+
+export LD_LIBRARY_PATH=/usr/local/lib64:$LD_LIBRARY_PATH
+sudo rxe_cfg start > /dev/null 2>&1
+sudo rxe_cfg add $nicname > /dev/null 2>&1
+sudo ifconfig $nicname down > /dev/null 2>&1
+sudo ifconfig $nicname up > /dev/null 2>&1
+sudo rxe_cfg start > /dev/null 2>&1
+echo 1       4       1      7 > /proc/sys/kernel/printk
+
+```
+
+
+
+
+
+开机用户登录时运行脚本，将环境变量写入
+
+```
+sudo cp export.sh /etc/profile.d/
+```
+
