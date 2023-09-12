@@ -6,10 +6,6 @@
 ln -s /usr/local/lib64/libibumad.so.3 /usr/lib/libibumad.so.3
 ```
 
-![image-20230825141603979](./image-20230825141603979.png)
-
-
-
 
 
 把 `/usr/local/lib64` 添加到共享库搜索路径中。
@@ -105,3 +101,69 @@ interrupt_number=$(echo "$interrupt_line" | awk '{print $1}' | sed 's/://')
 1. `echo "$interrupt_line"`：这部分会将包含中断信息的 `interrupt_line` 变量的内容输出到标准输出。
 2. `awk '{print $1}'`：使用 `awk` 命令，它会将输入的文本分割成字段（默认使用空格分隔），并输出第一个字段。`'{print $1}'` 表示输出第一个字段，通常是中断号。
 3. `sed 's/://'`：使用 `sed` 命令，它用于查找冒号 (`:`) 并将其替换为空字符，从而去除中断号中的冒号。这个操作可以将中断号从形如 "9:" 的格式中提取为纯数字格式。
+
+
+
+#### 中断脚本
+
+```
+
+#!/bin/bash
+nicname=$1
+array=($(cat /proc/interrupts | grep $nicname | awk '{gsub(/:/, "", $1); printf "%s%s", (NR==1 ? "" : " "), $1}'))
+array_len=${#array[@]}
+core_count=$(nproc)
+output_cores=$(seq 0 $((core_count-1)))
+output_cores=($output_cores)
+output_core_count=${#output_cores[@]}
+for ((index=0; index<array_len; index++)); do
+        irq="${array[index]}"
+        core="${output_cores[index % output_core_count]}"
+        echo "$core" > /proc/irq/$irq/smp_affinity_list
+done
+
+
+```
+
+#### 开机自启动
+
+**创建启动脚本**
+
+```
+sudo vim /etc/init.d/irqbalance_start.sh
+
+```
+
+##### 编辑脚本文件
+
+```
+#!/bin/bash
+/usr/sbin/irqbalance
+
+```
+
+**授权脚本文件**
+
+```
+sudo chmod +x /etc/init.d/irqbalance_start.sh
+
+```
+
+##### 配置开机自启动
+
+```
+sudo update-rc.d irqbalance_start.sh defaults
+```
+
+##### 重启
+
+```
+sudo reboot
+```
+
+##### 验证 `irqbalance` 是否正在运行
+
+```
+ps aux | grep irqbalance
+```
+

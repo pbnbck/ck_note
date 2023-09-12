@@ -119,3 +119,6 @@ snprintf(mqnic->name, sizeof(mqnic->name), DRIVER_NAME "%d", mqnic->id);
 - `sizeof(mqnic->name)` 返回的是字符数组 `mqnic->name` 的总容量，可以容纳的字符数。
 - `DRIVER_NAME` 和 `%d` 是格式化字符串的一部分。`DRIVER_NAME` 可能是一个预定义的宏或字符串，表示驱动程序的名称，`%d` 是一个占位符，表示后面会插入一个整数。
 - `mqnic->id` 是一个整数，它可能表示某种设备或资源的唯一标识符。
+
+
+

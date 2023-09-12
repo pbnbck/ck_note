@@ -75,7 +75,7 @@ sudo reboot
 
 
 ```
-cd /usr/scr/src/kernel
+cd /usr/scr/kernel
 make scripts
 ```
 
