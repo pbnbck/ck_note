@@ -138,7 +138,7 @@ sudo vim /etc/init.d/irqbalance_start.sh
 
 ```
 #!/bin/bash
-/usr/sbin/irqbalance
+/usr/local/sbin/irqbalance
 
 ```
 

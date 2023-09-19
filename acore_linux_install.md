@@ -34,29 +34,16 @@ vim grub.cfg
 
 ```
 serial --unit=0 --speed=115200 --word=8 --parity=no --stop=1 
-
 search --no-floppy --set=root -l 'boot' 
-
 default=boot 
-
 timeout=10
-
- 
-
 menuentry 'AcoreLinux Embedded version V1.0.0.F.2' {
-
     insmod part_gpt
-
     insmod ext2
-
     set root='hd0,gpt4'
-
     Echo  ‘Loading Linux 4.19 ACoreLinux-01 ...’
-
     linux  /boot/Image root=/dev/sda4
-
     console=ttyAMA1,115200 splash loglevel=7 rootdelay=5 KEYBOARDTYPE=pc KEYTABLE=us security=
-
 }
 ```
 
@@ -75,7 +62,7 @@ sudo reboot
 
 
 ```
-cd /usr/scr/kernel
+cd /usr/src/kernel
 make scripts
 ```
 

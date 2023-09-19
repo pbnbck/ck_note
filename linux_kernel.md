@@ -12,6 +12,8 @@ linux中断处理函数分为上半部和下半部，下半部分实现方式是
 
 ![image-20230907194825065](./images/linux_kernel/image-20230907194825065.png)
 
+![绘图1](./images/linux_kernel/绘图1.png)
+
 网卡收到数据，以DMA的方式将网卡收到的帧写到内存里。再向CPU发起中断，通知CPU有数据到达。当CPU收到中断请求后，会去调用网络设备驱动注册的中断处理函数，然后尽快释放CPU资源，ksoftirqd内核线程检测到有软中断请求到达，调用poll开始轮询收包，收到后交由各级协议栈处理。
 
 DMA（直接内存访问）是计算机系统中的一种数据传输技术，它允许外部设备（如硬盘驱动器、网络适配器、显卡等）直接访问计算机内存，而无需通过中央处理单元（CPU）的直接干预。DMA的主要目标是提高数据传输的效率和性能，减少CPU的负载，因为CPU不必处理每个数据传输操作。
@@ -286,7 +288,11 @@ static int __init igb_init_module(void)
 
 3. `pr_info("%s\n", igb_driver_string);` 和 `pr_info("%s\n", igb_copyright);`：这些语句使用 `pr_info` 函数输出信息到内核日志。它们用于打印驱动程序名称和版权信息到内核日志。
 
-4. `#ifdef CONFIG_IGB_DCA` 和 `dca_register_notify(&dca_notifier);`：这是条件编译的一部分，它检查是否定义了 `CONFIG_IGB_DCA` 宏。如果已定义，那么 `dca_register_notify(&dca_notifier);` 会被执行，该函数调用用于注册一个DCA（Direct Cache Access）通知。DCA是一种技术，允许PCI设备直接与CPU高速缓存进行交互，以提高性能。
+4. `%s` 是一个格式说明符，用于表示要输出的内容是一个字符串。
+
+5. `\n` 是一个转义序列，表示换行符，用于在输出中创建新的一行。
+
+6. `#ifdef CONFIG_IGB_DCA` 和 `dca_register_notify(&dca_notifier);`：这是条件编译的一部分，它检查是否定义了 `CONFIG_IGB_DCA` 宏。如果已定义，那么 `dca_register_notify(&dca_notifier);` 会被执行，该函数调用用于注册一个DCA（Direct Cache Access）通知。DCA是一种技术，允许PCI设备直接与CPU高速缓存进行交互，以提高性能。
 
    1. `dca_register_notify` 是一个用于在Linux内核中注册DCA通知的函数。DCA是一种技术，允许PCI设备直接与CPU高速缓存进行交互，以提高性能。
 
@@ -296,13 +302,28 @@ static int __init igb_init_module(void)
 
    3. 当 `dca_register_notify(&dca_notifier);` 被调用时，内核将使用传递的结构体信息来注册DCA通知。这通常意味着内核将调用指定的回调函数，以便在特定事件发生时执行相关操作。
 
-5. `ret = pci_register_driver(&igb_driver);`：这一行代码调用 `pci_register_driver` 函数来注册PCI设备驱动程序，该函数使用 `&igb_driver` 结构体变量作为参数，以将驱动程序注册到内核。注册驱动程序后，内核将使用 `igb_driver` 中的回调函数来处理PCI设备的探测和操作。
+7. `ret = pci_register_driver(&igb_driver);`：这一行代码调   用 `pci_register_driver` 函数来注册PCI设备驱动程序，该函数使用 `&igb_driver` 结构体变量作为参数，以将驱动程序注册到内核。注册驱动程序后，内核将使用 `igb_driver` 中的回调函数来处理PCI设备的探测和操作。
 
    1. `pci_register_driver` 是一个Linux内核函数，用于注册一个PCI设备驱动程序。这个函数接受一个指向 `struct pci_driver` 结构体的指针作为参数，该结构体包含了有关驱动程序的信息和回调函数。
    2. `&igb_driver` 是一个指向 `struct pci_driver` 结构体的指针，它是您定义的PCI设备驱动程序的结构体实例。这个结构体包含了与PCI设备相关的驱动程序信息，例如设备名称、设备探测函数、设备移除函数等。
    3. `ret` 是一个整数变量，用于存储 `pci_register_driver` 函数的返回值。这个返回值通常用于指示驱动程序注册是否成功。如果注册成功，`ret` 通常被设置为0，否则它将包含一个错误码，用于指示失败的原因。
 
    总的来说，这行代码的作用是将您的PCI设备驱动程序（由 `igb_driver` 结构体表示）注册到Linux内核中，以便内核能够在PCI设备与计算机通信时调用适当的回调函数（如探测函数、移除函数等）。成功的注册是确保PCI设备能够与操作系统正确交互的关键步骤之一。
+
+   DCA（Direct Cache Access）和DMA（Direct Memory Access）都涉及计算机系统中的数据传输，但它们的原理和应用领域有明显的区别：
+
+   1. **DCA（Direct Cache Access）的原理**：
+      - **目标**：DCA的主要目标是优化CPU缓存与外设设备之间的数据传输。
+      - **操作**：DCA通过将来自外设设备的数据（通常是传输写数据）直接放入CPU缓存中来实现。这样可以减少数据传输的延迟和CPU开销。
+      - **优点**：DCA可以消除由于传入写操作而导致的缓存未命中，提高数据传输的效率，减少了CPU的介入。
+      - **应用**：DCA通常用于特定情况下的高性能计算、网络和存储领域，以提高数据传输速度。
+   2. **DMA（Direct Memory Access）的原理**：
+      - **目标**：DMA的主要目标是允许外设设备直接访问系统内存，而无需CPU的介入。
+      - **操作**：DMA控制器负责管理数据传输，它可以通过总线（如PCIe总线）直接与内存通信，从而将数据传输到或从内存中读取数据。
+      - **优点**：DMA减少了CPU的负担，提高了系统性能，尤其在需要大规模数据传输的情况下。
+      - **应用**：DMA广泛应用于各种I/O设备，包括硬盘、光驱、图形卡、网络适配器等，用于高效地进行数据传输。
+
+   总的来说，DCA侧重于优化CPU缓存与外设设备之间的数据传输，目的是提高数据传输的速度和降低CPU开销。DMA则更广泛地用于各种I/O设备，它的主要目标是允许外设设备直接访问系统内存，以提高系统性能并降低CPU的负担。两者虽然在数据传输方面都有作用，但应用场景和实现方式有明显的区别。
 
    
 
@@ -534,6 +555,19 @@ int igb_setup_rx_resources(struct igb_ring *rx_ring)
 12. 最后，函数返回0，表示成功分配和配置接收资源。如果在上述任何步骤中出现错误，函数会在相应位置返回适当的错误代码，以便进行错误处理。
 
     ![image-20230912092234468](./images/linux_kernel/image-20230912092234468.png)
+    
+    `skb` 是Linux内核网络子系统中常用的数据结构，代表了一个网络数据包的缓冲区。`skb` 是 "Socket Buffer" 的缩写，它在网络通信中起着重要的作用，特别是在Linux上。
+    
+    以下是有关 `skb` 结构的一些关键信息：
+    
+    1. **缓冲区**：`skb` 是一个数据包的缓冲区，用于存储网络数据包的内容和相关的控制信息。
+    2. **网络协议**：`skb` 可以存储不同网络协议（如TCP、UDP、IP等）的数据包。内核通过 `skb` 结构来表示和处理这些数据包。
+    3. **数据结构**：`skb` 是一个包含各种字段和指针的复杂数据结构，用于存储数据包的不同部分和与之相关的元数据。它通常包括数据指针、长度、协议标志、头部和尾部指针等信息。
+    4. **操作**：内核和网络驱动程序可以使用 `skb` 来执行各种操作，例如接收、发送、路由、分析和修改数据包。这使得 `skb` 成为网络数据包在内核中流动和处理的关键数据结构。
+    5. **分配和释放**：在接收或发送数据包时，内核通常需要分配新的 `skb` 结构来容纳数据。一旦数据包被处理完毕，`skb` 可以被释放以避免内存泄漏。
+    6. **链表**：多个 `skb` 结构可以连接成一个链表，以便按顺序处理数据包。这种链表通常用于接收队列或发送队列中，以提高网络数据包的处理效率。
+    
+    `skb` 结构的使用广泛分布在Linux内核的网络子系统中，包括网络协议栈、驱动程序、路由、防火墙和其他网络相关的功能。这个结构使得Linux能够高效地处理各种网络数据包，从而支持了互联网连接和通信的核心功能。
 
 中断函数的注册
 
@@ -565,3 +599,330 @@ static int igb_request_irq(struct igb_adapter *adapter)
 2. **多队列支持**：MSI-X允许每个设备拥有多个中断消息队列，每个队列可以与不同的处理器核心或线程相关联。这允许并行处理中断，提高了系统的性能。
 3. **配置灵活性**：MSI-X允许操作系统和设备之间更灵活地协商中断处理方式。操作系统可以配置每个设备的中断行为，以满足性能和可靠性需求。
 4. **减少中断负载**：通过将中断消息直接发送到特定的处理器核心或线程，MSI-X可以减少中断负载的分布，从而减少了中断处理的开销。
+
+```
+err = request_irq(adapter->msix_entries[vector].vector,
+			  igb_msix_other, 0, netdev->name, adapter);
+	if (err)
+		goto err_out;
+
+```
+
+这部分代码使用 `request_irq` 函数请求一个 MSI-X 中断向量，用于处理与网络适配器的其他操作相关的中断事件。以下是这部分代码的详细解释：
+
+1. `request_irq` 函数：这是 Linux 内核提供的函数，用于请求一个中断服务例程 (IRQ handler)。它是中断处理程序的注册函数，用于告诉内核在特定中断号上触发中断时应该调用哪个函数。
+2. `adapter->msix_entries[vector].vector`：这是请求的 MSI-X 中断向量的向量号（vector number）。`adapter` 是一个指向 `struct igb_adapter` 结构的指针，`msix_entries` 是一个数组，包含了所有 MSI-X 中断向量的信息，通过 `vector` 变量索引到特定的向量。
+3. `igb_msix_other`：这是一个函数指针，它指向处理其他操作相关中断事件的中断服务例程。当请求的 MSI-X 中断向量触发时，内核将调用此函数来处理中断事件。
+4. `0`：这是一个标志，通常用于指定中断处理程序的标志。在这里，`0` 表示没有特殊标志。
+5. `netdev->name`：这是请求中断向量时指定的中断处理程序的名称。`netdev` 是一个指向网络设备的指针，`name` 是网络设备的名称。
+6. `adapter`：这是传递给中断处理程序的参数，通常是一个指向适配器或设备的指针。在中断处理程序中，您可以使用此参数来访问适配器的相关信息。
+7. `err = request_irq(...)`：这一行代码尝试请求指定的 MSI-X 中断向量，并将结果存储在 `err` 变量中。如果请求成功，`err` 的值将为 0，如果请求失败，`err` 的值将为一个负数，表示错误码。
+8. `if (err)`：这是一个条件语句，用于检查 `request_irq` 函数的返回值。如果 `err` 不等于 0（即请求失败），则会执行下面的 `goto err_out` 语句。
+9. `goto err_out`：如果请求中断向量失败，控制流将跳转到 `err_out` 标签，以便处理错误情况。在 `err_out` 部分，您可能会找到释放资源、记录错误或执行其他必要的清理操作。
+
+总结来说，这段代码请求一个 MSI-X 中断向量，并将指定的中断处理程序 (`igb_msix_other`) 分配给它，以便在中断事件发生时调用该处理程序。如果请求失败，将执行错误处理代码。这是网络适配器初始化过程的一部分，以确保适配器的中断处理正确设置。
+
+```
+User
+if (num_q_vectors > MAX_Q_VECTORS) {
+		num_q_vectors = MAX_Q_VECTORS;
+		dev_warn(&adapter->pdev->dev,
+			 "The number of queue vectors (%d) is higher than max allowed (%d)\n",
+			 adapter->num_q_vectors, MAX_Q_VECTORS);
+	}
+```
+
+
+这段代码片段执行了以下操作：
+
+1. 首先，它检查 `num_q_vectors` 变量的值是否大于 `MAX_Q_VECTORS`，这是一个预定义的最大队列向量数的常量。
+2. 如果 `num_q_vectors` 大于 `MAX_Q_VECTORS`，则将 `num_q_vectors` 的值修改为 `MAX_Q_VECTORS`，以确保不会请求超过系统所允许的最大队列向量数量。
+3. 接下来，它使用 `dev_warn` 函数生成一条警告消息，向开发人员或系统管理员报告队列向量数量超过了系统允许的最大值。这条警告消息包含了两个信息：
+   - `"The number of queue vectors (%d) is higher than max allowed (%d)\n"`：这是警告消息的格式字符串，其中 `%d` 是占位符，分别用于插入 `adapter->num_q_vectors` 和 `MAX_Q_VECTORS` 的值。
+   - `adapter->num_q_vectors`：表示当前队列向量的数量。
+   - `MAX_Q_VECTORS`：表示系统所允许的最大队列向量数量。
+
+总之，这段代码的目的是确保队列向量的数量不会超过系统允许的最大值 `MAX_Q_VECTORS`，并在超过最大值时生成一条警告消息以提醒开发人员或系统管理员。这是一种良好的健壮性措施，可以防止队列向量数量超出系统的处理能力。
+
+```
+for (i = 0; i < num_q_vectors; i++) {
+		struct igb_q_vector *q_vector = adapter->q_vector[i];
+
+		vector++;
+
+		q_vector->itr_register = adapter->io_addr + E1000_EITR(vector);
+```
+
+这段代码是在一个循环中遍历适配器中的队列向量，并为每个队列向量设置 `itr_register` 字段的值。以下是代码的详细解释：
+
+1. `for` 循环：这是一个 `for` 循环，从 `i = 0` 开始，一直循环到 `i` 的值小于 `num_q_vectors`。`num_q_vectors` 表示队列向量的数量，通常由适配器的驱动程序或配置文件设置。
+2. `struct igb_q_vector *q_vector`：在循环中，定义了一个指向 `struct igb_q_vector` 结构的指针变量 `q_vector`，用于表示当前迭代的队列向量。`q_vector` 变量被设置为指向 `adapter` 中的一个特定队列向量，以便后续的操作可以访问和配置该队列向量的属性和参数。这种方式允许在循环中逐个处理不同的队列向量，以执行特定的任务或配置操作。
+3. `vector++`：在每次循环迭代中，`vector` 变量的值会增加 1。`vector` 变量用于跟踪 MSI-X 中断向量的索引，以便正确分配和配置中断向量。
+4. `q_vector->itr_register`：这一行代码设置了当前队列向量的 `itr_register` 字段的值。`itr_register` 通常表示中断节拍周期的寄存器，用于控制中断间隔时间。这里的计算方法是将适配器的 `io_addr` 和 `E1000_EITR(vector)` 相加，以得到正确的 `itr_register` 地址。
+
+总结来说，这段代码的目的是遍历适配器中的队列向量，并为每个队列向量设置 `itr_register` 字段的值，以便控制中断的触发时间间隔。这有助于调整中断处理的性能和效率，以适应不同的工作负载和需求。
+
+
+
+总体来说调用顺序：_igb_open => igb_request_irq=>igb_request_msix。在igb_request_msix中对于多队列网卡，为每个队列都注册了中断，其对应的中断函数是igb_msix_ring。
+
+
+
+#### 迎接数据的到来
+
+##### 硬中断处理
+
+当数据帧从网线到达网卡上时，第一站时网卡的接受队列。网卡在分配给自己的RingBuffer中寻找可用的内存位置。找到后网卡把帧DMA关联到内存，到此时CPU无感的，当DMA操作完成后，网卡会向CPU发起一个硬中断，通知CPU有数据到达。
+
+![image-20230914110506234](./images/linux_kernel/image-20230914110506234.png)
+
+当RingBuffer满了的时候，新来的数据包将被丢弃。使用ifconfig命令查看网卡时可以看到overruns，表示因为环形队列满被丢弃的包数，若发现有丢包，可能需要通过ethtool命令来加大环形队列的长度.
+
+```
+static irqreturn_t igb_msix_ring(int irq, void *data)
+{
+	struct igb_q_vector *q_vector = data;
+
+	/* Write the ITR value calculated from the previous interrupt. */
+	igb_write_itr(q_vector);
+
+	napi_schedule(&q_vector->napi);
+
+	return IRQ_HANDLED;
+}
+```
+
+
+这段代码定义了一个 IRQ（中断请求）处理程序函数，通常用于处理 MSI-X 中断向量引发的中断事件。以下是这段代码的详细解释：
+
+- `static irqreturn_t igb_msix_ring(int irq, void *data)`：这是一个 IRQ 处理程序函数的定义。该函数在 IRQ 中断发生时被内核调用。
+- `irq`：这是中断请求号，表示触发中断的具体中断线。
+- `void *data`：这是一个指向数据的指针，通常包含了与中断事件相关的上下文信息。在这里，`data` 指针指向一个 `struct igb_q_vector` 结构，该结构用于表示与队列向量相关的信息。
+- `igb_write_itr(q_vector)`：这行代码调用了 `igb_write_itr` 函数，用于写入 ITR（中断节拍周期）的值。ITR 控制中断间隔时间，记录硬件冲断频率,可以根据上一个中断事件的处理情况进行动态调整。在这里，`q_vector` 表示与中断事件相关的队列向量，`igb_write_itr` 函数将根据队列向量的状态计算并设置正确的 ITR 值。
+- `napi_schedule(&q_vector->napi)`：这行代码调用了 `napi_schedule` 函数，用于安排网络 NAPI（New API）调度，以便在适当的时候执行网络接收处理。`q_vector->napi` 表示与中断事件相关的 NAPI 结构。
+- `return IRQ_HANDLED`：这行代码表示中断事件已经被处理，可以返回 `IRQ_HANDLED`，告诉内核中断已经被处理完毕。
+
+总结来说，这段代码表示当 MSI-X 中断向量引发中断时，将调用 `igb_msix_ring` 函数来处理中断事件。在处理事件期间，它会执行一些操作，例如设置中断节拍周期（ITR）、安排网络 NAPI 调度等，然后返回 `IRQ_HANDLED` 表示中断已被成功处理。这有助于确保中断事件的及时处理和系统性能的优化。
+
+
+
+```
+list_add_tail(&napi->poll_list, &sd->poll_list);
+	WRITE_ONCE(napi->list_owner, smp_processor_id());
+```
+
+1. `list_add_tail(&napi->poll_list, &sd->poll_list);`：这行代码使用 `list_add_tail` 函数将一个名为 `poll_list` 的链表节点（表示网络 NAPI 处理程序）添加到 `sd->poll_list` 链表的末尾。这通常用于将一个新的 NAPI 处理程序添加到网络数据包轮询列表中，以便后续可以处理网络数据包。
+2. `WRITE_ONCE(napi->list_owner, smp_processor_id());`：这行代码使用 `WRITE_ONCE` 宏将 `list_owner` 字段的值设置为当前 CPU 的 ID（核心号）。这个字段通常用于跟踪哪个 CPU 正在处理网络 NAPI 处理程序。`smp_processor_id()` 函数返回当前 CPU 的 ID。`WRITE_ONCE` 宏用于确保字段的写入是原子的，以防止竞态条件。
+
+综合起来，这段代码的目的是将一个新的网络 NAPI 处理程序添加到网络数据包轮询列表中，并设置 `list_owner` 字段以标识哪个 CPU 正在处理该处理程序。这有助于实现多核系统中的网络数据包处理并确保处理程序之间的正确协调。
+
+```
+
+void __raise_softirq_irqoff(unsigned int nr)
+{
+	lockdep_assert_irqs_disabled();
+	trace_softirq_raise(nr);
+	or_softirq_pending(1UL << nr);
+}
+```
+
+这段代码实现了一个函数 `__raise_softirq_irqoff`，用于在禁用中断的情况下触发（raise）一个软中断（softirq）。以下是这段代码的详细解释：
+
+- `void __raise_softirq_irqoff(unsigned int nr)`：这是函数的声明，它接受一个参数 `nr`，表示要触发的软中断号（softirq number）。
+- `lockdep_assert_irqs_disabled()`：这是一个断言，用于确保在调用这个函数时中断已经被禁用。软中断通常在禁用中断的上下文中触发，以确保它们在执行时不会被其他中断干扰。
+- `trace_softirq_raise(nr)`：这行代码可能是用于记录软中断触发事件的跟踪信息。它会调用一个跟踪函数，以便在系统中跟踪软中断的触发。
+- `or_softirq_pending(1UL << nr)`：这行代码用于设置软中断的挂起位（pending bit）。软中断的挂起位表示该软中断当前处于待处理状态。`1UL << nr` 表示将软中断号 `nr` 对应的位设置为 1，以将对应的软中断标记为挂起。这将导致软中断最终在合适的时机被执行。
+
+总结来说，这段代码的目的是在禁用中断的情况下触发一个软中断。它会将软中断标记为挂起，以便在稍后的时间点由合适的上下文或代码路径执行软中断处理程序。这有助于实现异步事件处理和优化系统性能。
+
+linux硬中断只是完成简单必要的工作,只是记录一个寄存器,修改CPU的poll_list,然后发出一个软中断.
+
+##### ksoftirqd内核线程处理软中断
+
+![image-20230914112819644](./images/linux_kernel/image-20230914112819644.png)
+
+```
+static int ksoftirqd_should_run(unsigned int cpu)
+{
+	return local_softirq_pending();
+}
+```
+
+这段代码定义了一个名为 `ksoftirqd_should_run` 的函数，该函数用于确定是否应该在特定 CPU 上运行 ksoftirqd 线程。以下是这段代码的详细解释：
+
+- `static int ksoftirqd_should_run(unsigned int cpu)`：这是函数的声明，它接受一个参数 `cpu`，表示特定的 CPU。
+- `local_softirq_pending()`：这是一个函数调用，它用于检查本地软中断是否处于挂起状态。`local_softirq_pending()` 函数通常会检查特定 CPU 上是否有软中断处于挂起状态。
+- `return local_softirq_pending();`：这行代码返回 `local_softirq_pending()` 函数的结果。如果在特定 CPU 上有软中断处于挂起状态，那么函数返回 `1`，否则返回 `0`。
+
+总结来说，这段代码的目的是检查特定 CPU 上是否有软中断处于挂起状态。如果有软中断挂起，那么函数返回 `1`，表示 ksoftirqd 线程应该在该 CPU 上运行以处理挂起的软中断。这有助于确保及时处理软中断事件，并优化系统的性能。通常，ksoftirqd 线程负责处理软中断，以减轻内核的中断处理负载，这里与硬中断用了同一个函数local_softirq_pending，不同的是：硬中断是为了写入标记，软中断只是读取，若硬中断中设置了NET_RX_SOFTIRQ，软中断就可以读取到。接下来会真正进入内核线程处理函数run_ksoftirqd进行处理。
+
+```
+static void run_ksoftirqd(unsigned int cpu)
+{
+    // 调用 ksoftirqd_run_begin() 函数，用于标记软中断守护线程的运行开始。
+    ksoftirqd_run_begin();
+
+    // 检查本地 CPU 上是否有软中断挂起（local_softirq_pending() 函数）。
+    if (local_softirq_pending()) {
+        /*
+         * 我们可以安全地在内联堆栈上运行软中断，因为我们不会深入到任务堆栈中。
+         */
+        // 如果有软中断挂起，调用 __do_softirq() 函数来执行软中断处理。
+        __do_softirq();
+
+        // 调用 ksoftirqd_run_end() 函数，标记软中断守护线程的运行结束。
+        ksoftirqd_run_end();
+
+        // 调用 cond_resched() 函数，进行条件性的调度。这可能会让 CPU 调度器考虑是否需要切换到其他任务。
+        cond_resched();
+        return;
+    }
+
+    // 如果没有软中断挂起，则调用 ksoftirqd_run_end() 函数，标记软中断守护线程的运行结束。
+    ksoftirqd_run_end();
+}
+
+```
+
+```
+asmlinkage __visible void do_softirq(void)
+{
+    __u32 pending;
+    unsigned long flags;
+
+    // 如果当前上下文已经在中断处理中，则直接返回，避免重复进入中断处理。
+    if (in_interrupt())
+        return;
+
+    // 保存当前 CPU 的中断标志位，并将中断禁用（关中断）。
+    local_irq_save(flags);
+
+    // 检查本地 CPU 上是否有软中断挂起（local_softirq_pending() 函数）。
+    pending = local_softirq_pending();
+
+    // 如果有软中断挂起，则调用 do_softirq_own_stack() 函数，执行软中断的实际处理。
+    if (pending)
+        do_softirq_own_stack();
+
+    // 恢复之前保存的中断标志位，允许中断再次被触发。
+    local_irq_restore(flags);
+}
+
+```
+
+```
+restart:
+	/* 重置挂起的软中断位掩码 */
+	set_softirq_pending(0);
+
+	/* 启用本地中断 */
+	local_irq_enable();
+
+	h = softirq_vec;
+
+	/* 循环处理挂起的软中断 */
+	while ((softirq_bit = ffs(pending))) {
+		unsigned int vec_nr;
+		int prev_count;
+
+		/* 更新处理的软中断索引 */
+		h += softirq_bit - 1;
+
+		vec_nr = h - softirq_vec;
+		prev_count = preempt_count();
+
+		/* 增加与当前软中断相关的统计数据 */
+		kstat_incr_softirqs_this_cpu(vec_nr);
+
+		/* 调用软中断处理函数 */
+		trace_softirq_entry(vec_nr);
+		h->action(h);
+		trace_softirq_exit(vec_nr);
+
+		/* 检查软中断处理前后的 preemption count 是否一致 */
+		if (unlikely(prev_count != preempt_count())) {
+			pr_err("huh, entered softirq %u %s %p with preempt_count %08x, exited with %08x?\n",
+			       vec_nr, softirq_to_name[vec_nr], h->action,
+			       prev_count, preempt_count());
+			preempt_count_set(prev_count);
+		}
+
+		/* 移动到下一个软中断处理函数 */
+		h++;
+		pending >>= softirq_bit;
+	}
+
+```
+
+这段代码的主要作用是处理软中断队列中挂起的软中断。具体操作包括：
+
+1. 通过 `set_softirq_pending(0)` 重置挂起的软中断位掩码，以准备处理新的软中断。
+2. 使用 `local_irq_enable()` 启用本地中断，允许中断触发。
+3. 进入一个循环，处理挂起的软中断。循环通过 `ffs(pending)` 来查找挂起的软中断位，并逐个处理。
+4. 在循环内部，首先更新要处理的软中断的索引 `vec_nr` 和保存进入软中断处理前的 preemption count。
+5. 调用软中断处理函数 `h->action(h)` 来执行软中断的实际处理。
+6. 在软中断处理前后，检查 preemption count 是否一致。如果不一致，会输出一条错误消息，并尝试恢复 preemption count。
+7. 移动到下一个待处理的软中断，继续处理，直到没有挂起的软中断为止。
+
+总之，这段代码是用于处理 Linux 内核中软中断队列中挂起的软中断的核心逻辑，确保软中断按照优先级依次得到处理。软中断通常用于处理低优先级的后台任务，以免阻塞高优先级的硬中断。
+
+
+
+硬中断中的设置软中断标记，和ksoftirqd中的判断是否有软中断到达都是基于smp_processor_id()的，这表示只要硬中断在哪个CPU上被响应，那么软中断也是在这个CPU上处理的。所有若linux软中断的CPU消耗都集中在一个核，正确的做法是调整硬中断的CPU亲和性，将硬中断打散到不同的CPU核上。
+
+```
+static __latent_entropy void net_rx_action(struct softirq_action *h)
+{
+	struct softnet_data *sd = this_cpu_ptr(&softnet_data);
+	unsigned long time_limit = jiffies +
+		usecs_to_jiffies(READ_ONCE(netdev_budget_usecs));
+	int budget = READ_ONCE(netdev_budget);
+	LIST_HEAD(list);
+	LIST_HEAD(repoll);
+
+start:
+	sd->in_net_rx_action = true;
+	local_irq_disable();
+	list_splice_init(&sd->poll_list, &list);
+	local_irq_enable();
+
+	
+```
+
+这段代码是Linux内核中网络接收（RX）软中断的核心处理函数。让我为您逐行解释它的关键部分：
+
+1. `struct softnet_data *sd = this_cpu_ptr(&softnet_data);`: 这行代码获取了指向当前CPU上 `softnet_data` 结构的指针，`softnet_data` 用于跟踪网络接收相关的信息。
+2. `unsigned long time_limit = jiffies + usecs_to_jiffies(READ_ONCE(netdev_budget_usecs));`: 这行代码计算了一个时间限制 `time_limit`，其值是当前 jiffies（内核时间单位）加上从 `netdev_budget_usecs` 变量中读取的微秒数转换而来的 jiffies。这个时间限制可能用于限制网络接收处理的时间。
+3. `int budget = READ_ONCE(netdev_budget);`: 这行代码读取了 `netdev_budget` 变量的值，该变量可能表示了网络接收的预算或允许的处理数量。
+4. `LIST_HEAD(list);` 和 `LIST_HEAD(repoll);`: 这两行代码定义了两个链表头，用于存储待处理的网络数据包以及需要重新进行轮询的网络数据包。重新处理的数据包队列通常用于处理在首次处理期间发生异常或无法立即成功处理的数据包。
+5. `sd->in_net_rx_action = true;`：设置一个标志，表示当前正在处理接收数据包的软中断。这个标志可能用于在处理过程中协调其他操作。
+6. `local_irq_disable();`：禁用本地中断，确保在处理接收数据包期间不会被中断。这是为了保证处理的原子性，以避免并发问题。
+7. `list_splice_init(&sd->poll_list, &list);`：这一行代码将一个链表（`sd->poll_list`）的内容添加到另一个链表（`list`）中，并且初始化源链表（`sd->poll_list`）为空。这可能表示正在将待处理的数据包从一个列表移到另一个列表，以便后续的处理。
+8. `local_irq_enable();`：重新启用本地中断，允许中断再次发生。
+
+这段代码的目的是在确保数据包处理的原子性的同时，将待处理的数据包从一个链表移到另一个链表。这可能是为了提高处理效率或进行后续的处理步骤。在网络子系统中，软中断通常用于异步处理接收的数据包，以减小中断负载并提高性能。
+
+```
+for (;;) {
+		struct napi_struct *n;
+
+		skb_defer_free_flush(sd);
+
+		if (list_empty(&list)) {
+			if (list_empty(&repoll)) {
+				sd->in_net_rx_action = false;
+				barrier();
+				/* We need to check if ____napi_schedule()
+				 * had refilled poll_list while
+				 * sd->in_net_rx_action was true.
+				 */
+				if (!list_empty(&sd->poll_list))
+					goto start;
+				if (!sd_has_rps_ipi_waiting(sd))
+					goto end;
+			}
+			break;
+		}
+
+```
+
