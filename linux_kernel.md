@@ -926,3 +926,180 @@ for (;;) {
 
 ```
 
+1. `struct napi_struct *n;`：定义了一个指向`napi_struct`结构体的指针`n`，该结构体通常用于网络中断处理。这个指针可能用于迭代处理不同的NAPI对象。
+2. `skb_defer_free_flush(sd);`：这可能是在处理数据包之前执行的某种操作，通常是为了刷新推迟释放（deferred free）的套接字缓冲（socket buffer）。
+3. `if (list_empty(&list)) {`：检查名为`list`的链表是否为空。`list`可能包含等待处理的数据包。
+4. `if (list_empty(&repoll)) {`：检查名为`repoll`的链表是否为空。`repoll`可能包含需要重新轮询的数据包。
+5. `sd->in_net_rx_action = false;`：将处理接收数据包的软中断标志设置为false，表示不再处理数据包。
+6. `barrier();`：这里使用了一个内存屏障（barrier），可能用于确保在标志被设置为false后，对其他共享数据的操作都已完成。内存屏障用于控制编译器和处理器的内存访问顺序，以确保多线程操作的一致性。
+7. `if (!list_empty(&sd->poll_list))`：检查名为`sd->poll_list`的链表是否非空。如果在设置标志为false后，有新的数据包被添加到了`sd->poll_list`中，那么会跳转到`start`标签，重新开始处理数据包。
+8. `if (!sd_has_rps_ipi_waiting(sd))`：检查是否有RPS（Receive Packet Steering） IPI（Inter-Processor Interrupt）等待。RPS通常用于在多核系统中分发网络接收处理的负载。如果没有等待的情况，会跳转到`end`标签，退出处理循环。
+9. RPS（Receive Packet Steering）：
+   - RPS是一种技术，用于将接收到的网络数据包从一个CPU核心传输到另一个CPU核心以进行进一步处理。在多核处理器系统中，通常有多个CPU核心，每个核心可能独立处理网络数据包。
+   - RPS的主要目的是在多核系统中更均匀地分布网络数据包处理的负载，以提高系统的网络性能。它可以避免某个核心过载，而其他核心处于空闲状态的情况。
+   - 当一个CPU核心接收到数据包后，RPS会将数据包的处理委托给其他核心。这通常涉及到将数据包相关的中断（例如，软中断）传递给目标核心。
+10. IPI（Inter-Processor Interrupt）：
+    - IPI是一种用于在多核处理器系统中进行处理器间通信的机制。它允许一个CPU核心向另一个核心发送中断请求，以触发某种操作。
+    - 在上下文中，RPS通常涉及使用IPI来通知目标核心需要处理特定的网络数据包。目标核心在接收到IPI后，会相应地处理数据包，以协调负载均衡。
+
+综合起来，RPS和IPI通常一起使用，以确保在多核系统中高效地处理网络数据包。RPS用于分发数据包的负载，而IPI用于触发处理数据包的操作。这些技术有助于提高多核系统的网络性能和资源利用率
+
+总体来说，这段代码片段的目的是在循环中处理接收的数据包，同时检查是否有新的数据包需要处理或是否有RPS等待。如果没有待处理的数据包并且没有RPS等待，循环将退出，结束软中断处理。如果有新的数据包或RPS等待，循环将继续处理。
+
+```
+	local_irq_disable();
+
+	list_splice_tail_init(&sd->poll_list, &list);
+	list_splice_tail(&repoll, &list);
+	list_splice(&list, &sd->poll_list);
+	if (!list_empty(&sd->poll_list))
+		__raise_softirq_irqoff(NET_RX_SOFTIRQ);
+	else
+		sd->in_net_rx_action = false;
+
+	net_rps_action_and_irq_enable(sd);
+end:;
+```
+
+1. `local_irq_disable();`：这里禁用了本地CPU核心的硬中断。这是为了确保在处理网络数据包时不会被其他硬中断中断，从而保持数据包处理的一致性和完整性。
+2. `list_splice_tail_init(&sd->poll_list, &list);`：这一行代码将两个链表进行连接。`sd->poll_list` 是一个链表，其中存储了待处理的网络数据包的 NAPI 结构。`list` 是一个临时链表，用于存储需要重新处理的数据包。`list_splice_tail_init()`函数将`sd->poll_list` 中的元素移到 `list` 中，并初始化 `sd->poll_list` 为空链表。
+3. `list_splice_tail(&repoll, &list);`：这一行代码将另一个链表 `repoll` 的元素添加到 `list` 的尾部。`repoll` 是一个用于存储需要重新处理的数据包的链表。
+4. `list_splice(&list, &sd->poll_list);`：这一行代码将 `list` 中的元素合并到 `sd->poll_list` 中，以便进一步处理。现在，`sd->poll_list` 包含了所有需要处理的数据包。
+5. `if (!list_empty(&sd->poll_list))`：这个条件语句检查 `sd->poll_list` 是否为空。如果其中有未处理的数据包，就执行下面的操作。
+6. `__raise_softirq_irqoff(NET_RX_SOFTIRQ);`：这行代码触发一个软中断，其中 `NET_RX_SOFTIRQ` 表示网络接收软中断。这将启动网络数据包的处理。
+7. `else`：如果 `sd->poll_list` 为空，表示没有未处理的数据包。
+8. `sd->in_net_rx_action = false;`：这一行将 `sd->in_net_rx_action` 设置为 `false`，表示当前CPU核心不再处于网络数据包接收处理的状态。
+9. `net_rps_action_and_irq_enable(sd);`：这一行代码用于启用网络数据包接收处理的远程处理（RPS）。它可能涉及到向其他CPU核心发送中断请求，以便它们也可以处理网络数据包。
+10. `end:;`：这是一个标签，标识了代码块的结束。在这里，它没有具体的作用，只是用来标记代码块的结束。
+
+总之，这段代码通过合并链表、触发软中断以及启用远程处理来协调网络数据包的处理，以确保数据包在多核系统中得到高效处理。
+
+需要注意的是硬中断将设备添加到poll_list不会重复添加，在软中断处理函数net_rx_action这里一进来就调用local_irq_disable把所有的硬中断都关了，time_limit和budget是用来控制net_rx_action函数主动退出的，确保网络包的接收不霸占CPU不放。
+
+```
+static int igb_poll(struct napi_struct *napi, int budget)
+{
+	struct igb_q_vector *q_vector = container_of(napi,
+						     struct igb_q_vector,
+						     napi);
+	bool clean_complete = true;
+	int work_done = 0;
+
+#ifdef CONFIG_IGB_DCA
+	if (q_vector->adapter->flags & IGB_FLAG_DCA_ENABLED)
+		igb_update_dca(q_vector);
+#endif
+	if (q_vector->tx.ring)
+		clean_complete = igb_clean_tx_irq(q_vector, budget);
+
+	if (q_vector->rx.ring) {
+		int cleaned = igb_clean_rx_irq(q_vector, budget);
+
+		work_done += cleaned;
+		if (cleaned >= budget)
+			clean_complete = false;
+	}
+
+	/* If all work not completed, return budget and keep polling */
+	if (!clean_complete)
+		return budget;
+
+	/* Exit the polling mode, but don't re-enable interrupts if stack might
+	 * poll us due to busy-polling
+	 */
+	if (likely(napi_complete_done(napi, work_done)))
+		igb_ring_irq_enable(q_vector);
+
+	return work_done;
+}
+```
+
+这段代码片段出现在一个网络数据包接收处理的软中断函数中，它的目的是协调网络数据包的处理，确保数据包在多核系统中得到高效处理。下面是对这段代码的逐行解释：
+
+1. `local_irq_disable();`：
+   - 这里禁用了本地CPU核心的硬中断。这是为了确保在处理网络数据包时不会被其他硬中断中断，从而保持数据包处理的一致性和完整性。
+2. `list_splice_tail_init(&sd->poll_list, &list);`：
+   - 这一行代码将两个链表进行连接。`sd->poll_list` 是一个链表，其中存储了待处理的网络数据包的 NAPI 结构。`list` 是一个临时链表，用于存储需要重新处理的数据包。
+   - `list_splice_tail_init()` 函数将 `sd->poll_list` 中的元素移到 `list` 中，并初始化 `sd->poll_list` 为空链表。
+3. `list_splice_tail(&repoll, &list);`：
+   - 这一行代码将另一个链表 `repoll` 的元素添加到 `list` 的尾部。`repoll` 是一个用于存储需要重新处理的数据包的链表。
+4. `list_splice(&list, &sd->poll_list);`：
+   - 这一行代码将 `list` 中的元素合并到 `sd->poll_list` 中，以便进一步处理。现在，`sd->poll_list` 包含了所有需要处理的数据包。
+5. `if (!list_empty(&sd->poll_list))`：
+   - 这个条件语句检查 `sd->poll_list` 是否为空。如果其中有未处理的数据包，就执行下面的操作。
+6. `__raise_softirq_irqoff(NET_RX_SOFTIRQ);`：
+   - 这行代码触发一个软中断，其中 `NET_RX_SOFTIRQ` 表示网络接收软中断。这将启动网络数据包的处理。
+7. `else`：
+   - 如果 `sd->poll_list` 为空，表示没有未处理的数据包。
+8. `sd->in_net_rx_action = false;`：
+   - 这一行将 `sd->in_net_rx_action` 设置为 `false`，表示当前CPU核心不再处于网络数据包接收处理的状态。
+9. `net_rps_action_and_irq_enable(sd);`：
+   - 这一行代码用于启用网络数据包接收处理的远程处理（RPS）。它可能涉及到向其他CPU核心发送中断请求，以便它们也可以处理网络数据包。
+10. `end:;`：
+    - 这是一个标签，标识了代码块的结束。在这里，它没有具体的作用，只是用来标记代码块的结束。
+
+总之，这段代码通过合并链表、触发软中断以及启用远程处理来协调网络数据包的处理，以确保数据包在多核系统中得到高效处理。
+
+
+
+```
+static int igb_poll(struct napi_struct *napi, int budget)
+{
+	struct igb_q_vector *q_vector = container_of(napi,
+						     struct igb_q_vector,
+						     napi);
+		
+	bool clean_complete = true;
+	int work_done = 0;
+
+#ifdef CONFIG_IGB_DCA
+	if (q_vector->adapter->flags & IGB_FLAG_DCA_ENABLED)
+		igb_update_dca(q_vector);
+#endif
+	if (q_vector->tx.ring)
+		clean_complete = igb_clean_tx_irq(q_vector, budget);
+
+	if (q_vector->rx.ring) {
+		int cleaned = igb_clean_rx_irq(q_vector, budget);
+
+		work_done += cleaned;
+		if (cleaned >= budget)
+			clean_complete = false;
+	}
+
+	/* If all work not completed, return budget and keep polling */
+	if (!clean_complete)
+		return budget;
+
+	/* Exit the polling mode, but don't re-enable interrupts if stack might
+	 * poll us due to busy-polling
+	 */
+	if (likely(napi_complete_done(napi, work_done)))
+		igb_ring_irq_enable(q_vector);
+
+	return work_done;
+}
+
+```
+
+这段代码是一个网络设备驱动程序中的 `igb_poll` 函数。以下是对代码的逐行解释：
+
+1. `struct igb_q_vector *q_vector = container_of(napi, struct igb_q_vector, napi);`：这行代码通过 `container_of` 宏将 `napi_struct` 结构体指针 `napi` 转换为 `igb_q_vector` 结构体指针 `q_vector`。这里假设 `napi` 结构体是作为 `igb_q_vector` 结构体的一部分来使用的。
+2. `bool clean_complete = true;`：
+   - 这行代码定义了一个布尔变量 `clean_complete`，并将其初始化为 `true`。
+3. `int work_done = 0;`：
+   - 这行代码定义了一个整数变量 `work_done`，并将其初始化为 `0`。
+4. `#ifdef CONFIG_IGB_DCA` 和 `#endif`：
+   - 这是一个条件编译块，用于检查是否定义了 `CONFIG_IGB_DCA`。如果定义了，那么代码块内的内容将包含在编译中，否则将被忽略。
+5. `if (q_vector->adapter->flags & IGB_FLAG_DCA_ENABLED)`：
+   - 这个条件语句检查网卡适配器结构体中的标志 `IGB_FLAG_DCA_ENABLED` 是否已设置。如果已设置，表示使用了 Direct Cache Access (DCA) 特性，将调用 `igb_update_dca` 函数来更新 DCA 相关的设置。
+6. `if (q_vector->tx.ring)`：
+   - 这个条件语句检查是否存在传输（TX）环（ring）。如果存在，将调用 `igb_clean_tx_irq` 函数来处理传输中断。
+7. `if (q_vector->rx.ring)`：
+   - 这个条件语句检查是否存在接收（RX）环（ring）。如果存在，将调用 `igb_clean_rx_irq` 函数来处理接收中断，并将处理的结果累加到 `work_done` 中。
+8. `if (!clean_complete)`：
+   - 这个条件语句检查是否所有的清理工作已经完成。如果没有，将返回 `budget`（传递的处理预算），并保持轮询状态。
+9. `if (likely(napi_complete_done(napi, work_done)))`：
+   - 这个条件语句检查是否可以完成 NAPI（New API）处理。如果可以，表示所有工作都已完成，将通过 `igb_ring_irq_enable` 函数重新启用中断。
+
+最终，这段代码执行了网络设备的轮询操作，清理传输和接收中断，确保网络数据包的处理工作。如果还有工作未完成，将保持轮询状态，否则将重新启用中断。这是一个典型的网络设备驱动程序中的轮询处理函数。
