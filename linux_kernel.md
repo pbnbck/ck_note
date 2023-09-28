@@ -976,70 +976,6 @@ end:;
 
 需要注意的是硬中断将设备添加到poll_list不会重复添加，在软中断处理函数net_rx_action这里一进来就调用local_irq_disable把所有的硬中断都关了，time_limit和budget是用来控制net_rx_action函数主动退出的，确保网络包的接收不霸占CPU不放。
 
-```
-static int igb_poll(struct napi_struct *napi, int budget)
-{
-	struct igb_q_vector *q_vector = container_of(napi,
-						     struct igb_q_vector,
-						     napi);
-	bool clean_complete = true;
-	int work_done = 0;
-
-#ifdef CONFIG_IGB_DCA
-	if (q_vector->adapter->flags & IGB_FLAG_DCA_ENABLED)
-		igb_update_dca(q_vector);
-#endif
-	if (q_vector->tx.ring)
-		clean_complete = igb_clean_tx_irq(q_vector, budget);
-
-	if (q_vector->rx.ring) {
-		int cleaned = igb_clean_rx_irq(q_vector, budget);
-
-		work_done += cleaned;
-		if (cleaned >= budget)
-			clean_complete = false;
-	}
-
-	/* If all work not completed, return budget and keep polling */
-	if (!clean_complete)
-		return budget;
-
-	/* Exit the polling mode, but don't re-enable interrupts if stack might
-	 * poll us due to busy-polling
-	 */
-	if (likely(napi_complete_done(napi, work_done)))
-		igb_ring_irq_enable(q_vector);
-
-	return work_done;
-}
-```
-
-这段代码片段出现在一个网络数据包接收处理的软中断函数中，它的目的是协调网络数据包的处理，确保数据包在多核系统中得到高效处理。下面是对这段代码的逐行解释：
-
-1. `local_irq_disable();`：
-   - 这里禁用了本地CPU核心的硬中断。这是为了确保在处理网络数据包时不会被其他硬中断中断，从而保持数据包处理的一致性和完整性。
-2. `list_splice_tail_init(&sd->poll_list, &list);`：
-   - 这一行代码将两个链表进行连接。`sd->poll_list` 是一个链表，其中存储了待处理的网络数据包的 NAPI 结构。`list` 是一个临时链表，用于存储需要重新处理的数据包。
-   - `list_splice_tail_init()` 函数将 `sd->poll_list` 中的元素移到 `list` 中，并初始化 `sd->poll_list` 为空链表。
-3. `list_splice_tail(&repoll, &list);`：
-   - 这一行代码将另一个链表 `repoll` 的元素添加到 `list` 的尾部。`repoll` 是一个用于存储需要重新处理的数据包的链表。
-4. `list_splice(&list, &sd->poll_list);`：
-   - 这一行代码将 `list` 中的元素合并到 `sd->poll_list` 中，以便进一步处理。现在，`sd->poll_list` 包含了所有需要处理的数据包。
-5. `if (!list_empty(&sd->poll_list))`：
-   - 这个条件语句检查 `sd->poll_list` 是否为空。如果其中有未处理的数据包，就执行下面的操作。
-6. `__raise_softirq_irqoff(NET_RX_SOFTIRQ);`：
-   - 这行代码触发一个软中断，其中 `NET_RX_SOFTIRQ` 表示网络接收软中断。这将启动网络数据包的处理。
-7. `else`：
-   - 如果 `sd->poll_list` 为空，表示没有未处理的数据包。
-8. `sd->in_net_rx_action = false;`：
-   - 这一行将 `sd->in_net_rx_action` 设置为 `false`，表示当前CPU核心不再处于网络数据包接收处理的状态。
-9. `net_rps_action_and_irq_enable(sd);`：
-   - 这一行代码用于启用网络数据包接收处理的远程处理（RPS）。它可能涉及到向其他CPU核心发送中断请求，以便它们也可以处理网络数据包。
-10. `end:;`：
-    - 这是一个标签，标识了代码块的结束。在这里，它没有具体的作用，只是用来标记代码块的结束。
-
-总之，这段代码通过合并链表、触发软中断以及启用远程处理来协调网络数据包的处理，以确保数据包在多核系统中得到高效处理。
-
 
 
 ```
@@ -1103,3 +1039,80 @@ static int igb_poll(struct napi_struct *napi, int budget)
    - 这个条件语句检查是否可以完成 NAPI（New API）处理。如果可以，表示所有工作都已完成，将通过 `igb_ring_irq_enable` 函数重新启用中断。
 
 最终，这段代码执行了网络设备的轮询操作，清理传输和接收中断，确保网络数据包的处理工作。如果还有工作未完成，将保持轮询状态，否则将重新启用中断。这是一个典型的网络设备驱动程序中的轮询处理函数。
+
+
+
+```
+/* retrieve a buffer from the ring */
+		if (!skb) {
+			unsigned char *hard_start = pktbuf - igb_rx_offset(rx_ring);
+			unsigned int offset = pkt_offset + igb_rx_offset(rx_ring);
+
+			xdp_prepare_buff(&xdp, hard_start, offset, size, true);
+			xdp_buff_clear_frags_flag(&xdp);
+```
+
+`if (!skb)`:检查是否存在套接字缓冲区‘skb’,如果为空则执行：
+
+`unsigned char *hard_start = pktbuf - igb_rx_offset(rx_ring);`计算网络数据包的起始位置。
+
+`unsigned int offset = pkt_offset + igb_rx_offset(rx_ring);`计算数据包中数据的偏移量
+
+`xdp_prepare_buff(&xdp, hard_start, offset, size, true);`
+`xdp_buff_clear_frags_flag(&xdp);`
+
+准备一个数据包缓冲区，清除数据包缓冲区中的一些标志位或标志标识。
+
+
+
+```
+if (igb_is_non_eop(rx_ring, rx_desc))
+			continue;
+
+		/* verify the packet layout is correct */
+		if (igb_cleanup_headers(rx_ring, rx_desc, skb)) {
+			skb = NULL;
+			continue;
+		}
+```
+
+1. `if (igb_is_non_eop(rx_ring, rx_desc))`：这是一个条件语句，它检查一个条件，即 `igb_is_non_eop(rx_ring, rx_desc)` 的返回值是否为真。`igb_is_non_eop` 是一个函数，用于检查接收到的网络数据包是否不是结束包（non-EOP，End Of Packet），通常在网络中，数据包被分成多个部分传输，而结束包标志着数据包的结束。如果条件成立，表示这个数据包不是结束包，那么会执行下面的 `continue` 语句。
+
+   - `continue`：`continue` 是一个控制流语句，用于跳过当前循环迭代的剩余部分，继续下一次循环迭代。在这里，如果数据包不是结束包，就会跳过后续的处理，直接进入下一次循环，处理下一个数据包。
+
+2. 接下来的部分是在没有遇到结束包的情况下对数据包进行一些验证和清理操作。如果数据包通过验证，就会进行清理；否则，将 `skb`（可能是一个网络数据包的缓冲区）设置为 `NULL`，然后继续下一次循环，处理下一个数据包。
+
+   - `if (igb_cleanup_headers(rx_ring, rx_desc, skb))`：这是另一个条件语句，用于验证数据包的布局是否正确。如果布局验证失败，`igb_cleanup_headers` 函数返回一个非零值，这会导致条件成立。在这种情况下，将 `skb` 设置为 `NULL`，表示数据包无效，然后继续下一次循环。
+
+   - 总的来说，这段代码的作用是检查和处理接收到的网络数据包。如果数据包不是结束包或者数据包的布局验证失败，那么会跳过当前数据包的处理，继续处理下一个数据包。如果数据包通过了验证，可能会进行一些清理操作。
+
+     
+
+     
+
+```
+/* probably a little skewed due to removing CRC */
+		total_bytes += skb->len;
+
+		/* populate checksum, timestamp, VLAN, and protocol */
+		igb_process_skb_fields(rx_ring, rx_desc, skb);
+
+		napi_gro_receive(&q_vector->napi, skb);
+
+		/* reset skb pointer */
+		skb = NULL;
+
+		/* update budget accounting */
+		total_packets++;
+	}
+```
+
+1. `total_bytes += skb->len;`：这行代码用于累加接收到的数据包的长度（`skb->len`），以便跟踪接收到的总字节数。
+2. `igb_process_skb_fields(rx_ring, rx_desc, skb);`：这是一个函数调用，用于处理网络数据包的字段，可能包括校验和、时间戳、VLAN 标签和协议等。这些操作可能涉及到对数据包头部的解析和修改。
+3. `napi_gro_receive(&q_vector->napi, skb);`：这行代码调用了 `napi_gro_receive` 函数，用于执行网络数据包的 GRO（Generic Receive Offload）操作。GRO 是一种技术，用于在接收大量数据包时将它们合并为更大的数据包，以减少处理开销。
+4. `skb = NULL;`：将 `skb` 设置为 `NULL`，表示当前的网络数据包已经被处理完毕，不再需要对其进行操作，也许是为了释放资源或者标志处理完成。
+5. `total_packets++;`：这行代码用于增加接收到的数据包数量的计数器，以跟踪接收到的总数据包数量。
+
+总的来说，这段代码处理了接收到的网络数据包，包括累加数据包的总字节数、处理数据包的字段、执行 GRO 操作、标志已处理的数据包，并更新数据包数量计数器。
+
+igb_fetch_rx_buffer和igb_is_non_eop作用是把数据帧从RingBuffer取下来，skb被取下来后,会通过igb_alloc_rx_buffers申请新的skb再重新挂上，以给后面新包到来使用。
