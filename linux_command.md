@@ -125,6 +125,19 @@ done
 
 ```
 
+```
+array=($(cat /proc/interrupts | grep $nicname | awk '{gsub(/:/, "", $1); printf "%s%s", (NR==1 ? "" : " "), $1}'))
+```
+
+这行代码是一个Bash命令，用于读取`/proc/interrupts`文件的内容，然后筛选包含在变量`$nicname`中的值的行，使用`awk`命令去除第一个字段中的冒号，并将处理后的数值存储在名为`array`的数组中。以下是该命令的详细解释：
+
+1. `cat /proc/interrupts`：这个命令显示`/proc/interrupts`文件的内容，该文件提供了关于系统中断请求的信息。
+2. `grep $nicname`：`grep`命令用于在文件中筛选包含变量`$nicname`的值的行。
+3. `awk '{gsub(/:/, "", $1); printf "%s%s", (NR==1 ? "" : " "), $1}'`：这部分是`awk`命令，它会去掉每行第一个字段中的冒号，并按照指定的格式输出处理后的值。具体地，`gsub(/:/, "", $1)`用于去除第一个字段中的冒号，`printf "%s%s", (NR==1 ? "" : " "), $1`则用于输出处理后的值，其中`(NR==1 ? "" : " ")`的作用是在第一个字段前面加上空格，确保输出的格式正确。
+4. `array=($(...))`：最终处理后的数值通过命令替换的方式（`$()`)存储到名为`array`的数组中。
+
+请注意，这段代码的目的是将`/proc/interrupts`文件中包含特定`$nicname`值的行的第一个字段（去除冒号后的值）存储在一个Bash数组中。
+
 #### 开机自启动
 
 **创建启动脚本**
@@ -165,5 +178,131 @@ sudo reboot
 
 ```
 ps aux | grep irqbalance
+```
+
+
+
+
+
+
+
+##### 重启网络设置
+
+```
+sudo systemctl restart NetworkManager.service
+```
+
+```
+
+# interfaces(5) file used by ifup(8) and ifdown(8)
+auto lo
+iface lo inet loopback
+
+
+auto enaphyt4i0
+iface enaphyt4i0 inet static
+address 10.10.29.89
+netmask 255.255.255.0
+gateway 10.10.29.1
+dns-nameservers 114.114.114.114
+~
+~
+
+```
+
+```
+# This file describes the network interfaces available on your system
+# and how to activate them. For more information, see interfaces(5).
+
+source /etc/network/interfaces.d/*
+
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet manual
+bond-master bond0
+
+auto eth1
+iface eth1 inet manual
+bond-master bond0
+
+auto bond0
+iface bond0 inet static
+address 192.168.1.22
+netmask 255.255.255.0
+gateway 192.168.1.1
+bond-slaves enp1s0f0 enp1s0f1
+bond-mode 1
+bond-miimon 100
+
+auto enp1s0f2
+iface enp1s0f2 inet static
+address 192.168.1.111
+netmask 255.255.255.128
+gateway 192.168.1.1
+# The primary network interface
+
+```
+
+删除网口
+
+```
+sudo ip link set dev bond0 down
+sudo ip link set dev bond1 down
+sudo ip link delete bond0
+sudo ip link delete bond1
+sudo nmcli connection delete bond0
+sudo nmcli connection delete bond1
+```
+
+### shc
+
+#### 编译Shell脚本
+
+```
+
+shc -f script.sh
+```
+
+#### 运行编译后的二进制文件
+
+```
+./script.sh.x
+
+```
+
+### 链路聚合
+
+#### **创建bond1**
+
+```
+nmcli connection add type bond con-name bond1 ifname bond1 mode active-backup ipv4.method manual ipv4.addresses 192.168.174.160/24 ipv4.gateway 192.168.174.2 ipv4.dns 8.8.8.8
+```
+
+#### 查看bond1网卡连接状态
+
+```
+nmcli connection show
+```
+
+#### **添加物理网卡连接到bond1**　
+
+```
+nmcli connection add type bond-slave con-name slave1 ifname eth1 master bond1
+nmcli connection add type bond-slave con-name slave2 ifname eth2 master bond1
+```
+
+#### **查看bond的配置信息**
+
+```
+cat /proc/net/bonding/bond1
+```
+
+#### 停掉eth1，查看配置文件状态
+
+```
+nmcli device disconnect eth1
 ```
 
