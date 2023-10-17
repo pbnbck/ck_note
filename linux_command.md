@@ -278,7 +278,7 @@ shc -f script.sh
 #### **创建bond1**
 
 ```
-nmcli connection add type bond con-name bond1 ifname bond1 mode active-backup ipv4.method manual ipv4.addresses 192.168.174.160/24 ipv4.gateway 192.168.174.2 ipv4.dns 8.8.8.8
+nmcli connection add type bond con-name bond1 ifname bond1 mode 4 ipv4.method manual ipv4.addresses 192.168.174.160/24 ipv4.gateway 192.168.174.2 ipv4.dns 8.8.8.8
 ```
 
 #### 查看bond1网卡连接状态
@@ -290,8 +290,8 @@ nmcli connection show
 #### **添加物理网卡连接到bond1**　
 
 ```
-nmcli connection add type bond-slave con-name slave1 ifname eth1 master bond1
-nmcli connection add type bond-slave con-name slave2 ifname eth2 master bond1
+nmcli connection add type bond-slave con-name slave1 ifname enp1s0 master bond1
+nmcli connection add type bond-slave con-name slave2 ifname enp1s0d1 master bond1
 ```
 
 #### **查看bond的配置信息**
