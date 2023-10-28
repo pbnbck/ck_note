@@ -194,55 +194,11 @@ sudo systemctl restart NetworkManager.service
 
 ```
 
-# interfaces(5) file used by ifup(8) and ifdown(8)
-auto lo
-iface lo inet loopback
-
-
-auto enaphyt4i0
-iface enaphyt4i0 inet static
-address 10.10.29.89
-netmask 255.255.255.0
-gateway 10.10.29.1
-dns-nameservers 114.114.114.114
-~
-~
 
 ```
 
 ```
-# This file describes the network interfaces available on your system
-# and how to activate them. For more information, see interfaces(5).
 
-source /etc/network/interfaces.d/*
-
-# The loopback network interface
-auto lo
-iface lo inet loopback
-
-auto eth0
-iface eth0 inet manual
-bond-master bond0
-
-auto eth1
-iface eth1 inet manual
-bond-master bond0
-
-auto bond0
-iface bond0 inet static
-address 192.168.1.22
-netmask 255.255.255.0
-gateway 192.168.1.1
-bond-slaves enp1s0f0 enp1s0f1
-bond-mode 1
-bond-miimon 100
-
-auto enp1s0f2
-iface enp1s0f2 inet static
-address 192.168.1.111
-netmask 255.255.255.128
-gateway 192.168.1.1
-# The primary network interface
 
 ```
 
@@ -305,4 +261,20 @@ cat /proc/net/bonding/bond1
 ```
 nmcli device disconnect eth1
 ```
+
+
+
+### 配置网卡ip转发
+
+```
+echo 1 > /proc/sys/net/ipv4/ip_forward
+```
+
+
+
+
+
+
+
+
 

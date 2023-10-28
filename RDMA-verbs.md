@@ -278,7 +278,7 @@ int main(int argc, char **argv)
   struct rdma_event_channel *ec = NULL;
 ```
 
-d`int main(int argc, char **argv)`: 这是程序的主函数，它是程序的入口点。它接受命令行参数 `argc` 和 `argv`，`argc` 表示参数个数，`argv` 是一个指向参数字符串数组的指针。
+`int main(int argc, char **argv)`: 这是程序的主函数，它是程序的入口点。它接受命令行参数 `argc` 和 `argv`，`argc` 表示参数个数，`argv` 是一个指向参数字符串数组的指针。
 
 `struct addrinfo *addr`：是一个指向`struct addrinfo`结构体的指针，通常用于存储地址信息。
 
@@ -397,9 +397,9 @@ freeaddrinfo(addr)
 rdma_ack_cm_event(event)
 ```
 
-
-
 确认并且释放相关资源
+
+
 
 ```
 void die(const char *reason);
@@ -435,4 +435,53 @@ exit(EXIT_FAILURE)
 s_ctx = (struct context *)malloc(sizeof(struct context));
 ```
 
-**malloc**用于动态分配内存，**malloc**接受一个参数，表示要分配的内存块的字节数，返回一个指向新分配内存起始地址的指针
+**malloc**用于动态分配内存，**malloc**接受一个参数，表示要分配的内存块的字节数，返回一个指向新分配内存起始地址的指针。
+
+**(struct context *)**:这是一个类型转换操作，将**'malloc'**返回的通用指针('void *'类型)转换为指向'struct context'结构体的指针类型。
+
+
+
+```
+s_ctx->comp_channel = ibv_create_comp_channel(s_ctx->ctx));
+```
+
+创建完成通道
+
+
+
+
+
+```
+s_ctx->cq = ibv_create_cq(s_ctx->ctx, 10, NULL, s_ctx->comp_channel, 0)
+```
+
+创建完成队列
+
+**10**：这是CQ的容量，可以存储的完成事件（传输操作完成的通知）的数量，即CQE=10
+
+**NULL**：指向CQ的可选参数用于指定一个parent CQ
+
+**parent CQ**：用于管理多个字CQ的CQ
+
+**s_ctx->comp_channel**:这是一个完成通道指针，指定所管理的完成通道
+
+**0**：这是一个用于指定CQ的标志位参数，该参数被设置为0，表示没有特殊的标志位设置，即新创建的CQ将具有默认的行为和属性
+
+
+
+
+
+```
+ibv_req_notify_cq(s_ctx->cq, 0)
+```
+
+**ibv_req_notify_cq(s_ctx->cq, 0)**：用于配置CQ的事件通知，在API中，当CQ中有完成事件（例如，传输操作完成），0表示禁用通知，使用禁用通知，应用程序就能够自己控制何时以及如何处理完成事件
+
+
+
+```
+pthread_create(&s_ctx->cq_poller_thread, NULL, poll_cq, NULL)
+```
+
+**&s_ctx->cq_poller_thread**:线程标识符，用来
+
