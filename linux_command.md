@@ -14,6 +14,15 @@ ln -s /usr/local/lib64/libibumad.so.3 /usr/lib/libibumad.so.3
 export LD_LIBRARY_PATH=/usr/local/lib64:$LD_LIBRARY_PATH
 ```
 
+ rdma link
+
+```
+modprobe rdma_rxe
+sudo rdma link add rxe_0 type rxe netdev ens33
+```
+
+
+
 ### 天脉
 
 查看磁盘 `/dev/sda` 的分区信息
@@ -272,7 +281,44 @@ echo 1 > /proc/sys/net/ipv4/ip_forward
 
 
 
+抖动脚本
 
+```
+#!/bin/bash
+
+# 从文本中提取每个 latency= 行后的数字
+latency_values=$(grep -oP 'latency\s*=\s*\K\d+(\.\d+)?' tcp_performance_test.txt)
+
+# 检查是否有足够的数据点
+if [ -z "$latency_values" ]; then
+    echo "没有找到合适的 latency 数据"
+    exit 1
+fi
+
+# 计算平均值
+sum=0
+count=0
+for latency in $latency_values; do
+    sum=$(echo "$sum + $latency" | bc -l)
+    count=$((count + 1))
+done
+
+average_latency=$(echo "scale=2; $sum / $count" | bc -l)
+
+# 计算方差
+variance_sum=0
+for latency in $latency_values; do
+    diff=$(echo "$latency - $average_latency" | bc -l)
+    squared_diff=$(echo "$diff * $diff" | bc -l)
+    variance_sum=$(echo "$variance_sum + $squared_diff" | bc -l)
+done
+
+variance=$(echo "scale=2; $variance_sum / $count" | bc -l)
+
+# 输出平均值和方差值到原始文件
+echo "平均值: $average_latency us" >> tcp_performance_test.txt
+echo "抖动: $variance us" >> tcp_performance_test.txt
+```
 
 
 
