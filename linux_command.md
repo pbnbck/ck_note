@@ -320,7 +320,41 @@ echo "平均值: $average_latency us" >> tcp_performance_test.txt
 echo "抖动: $variance us" >> tcp_performance_test.txt
 ```
 
+杀进程脚本
 
+```
+#!/bin/bash
+exec &> /dev/null
 
+# 要终止的进程名称列表
+process_names=("rdma_s.sh" "04_tcp_rdma_001" "rdma_c.sh" "tcp_c_64.sh" "out1.00" "sleep" "ethperf" "tee")
 
+# 查找并终止匹配进程
+for name in "${process_names[@]}"; do
+    pids=$(ps aux | grep "$name" | grep -v grep | awk '{print $2}')
+    if [ -z "$pids" ]; then
+        echo "没有找到匹配的进程: $name"
+    else
+        echo "正在终止进程: $name"
+        for pid in $pids; do
+            kill -9 "$pid"
+            echo "已终止进程PID: $pid"
+        done
+    fi
+done
+exit 0
+
+```
+
+```
+function on_interrupt {
+   cd src
+    ./kill.sh
+    exit 1
+}
+
+# 捕获Ctrl+C信号
+trap on_interrupt SIGINT
+
+```
 
