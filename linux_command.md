@@ -358,3 +358,24 @@ trap on_interrupt SIGINT
 
 ```
 
+
+
+
+
+```
+pid=$!
+```
+
+`$!`是一个特殊变量，它代表了最近一个在后台运行的进程的PID
+
+
+
+nmcli配置ip
+
+```
+ nmcli con mod enp0s3 ipv4.addresses 192.168.1.4/24
+ nmcli con mod enp0s3 ipv4.gateway 192.168.1.1
+ nmcli con mod enp0s3 ipv4.method manual
+ nmcli con mod enp0s3 ipv4.dns "8.8.8.8"
+```
+
